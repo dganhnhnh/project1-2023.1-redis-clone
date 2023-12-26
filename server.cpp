@@ -22,15 +22,18 @@ static void die(const char *msg) {
 
 const size_t k_max_msg = 4096;
 
+//-- đọc từ fd vào buf, mỗi lần n bytes
 static int32_t read_full(int fd, char *buf, size_t n) {
     while (n > 0) {
         //-- đọc n bytes từ fd vào buf
+        //-- rv trừ dần vào n; rv = bao nhiêu tùy kích cỡ của buf
         ssize_t rv = read(fd, buf, n);
         if (rv <= 0) {
             return -1;  //-- error, or unexpected EOF
         }
         assert((size_t)rv <= n);
         n -= (size_t)rv;
+        //-- cập nhật con trỏ buffer tới vị trí tiếp theo
         buf += rv;
     }
     return 0;
@@ -38,6 +41,7 @@ static int32_t read_full(int fd, char *buf, size_t n) {
 
 static int32_t write_all(int fd, const char *buf, size_t n) {
     while (n > 0) {
+        //-- ghi từ buf ra fd
         ssize_t rv = write(fd, buf, n);
         if (rv <= 0) {
             return -1;  //-- error
@@ -53,6 +57,7 @@ static int32_t one_request(int connfd) {
     //-- 4 bytes header
     char rbuf[4 + k_max_msg + 1];
     errno = 0;
+    //-- 1. đọc header để biết độ dài msg
     int32_t err = read_full(connfd, rbuf, 4);
     if (err) {
         if (errno == 0) {
@@ -64,12 +69,14 @@ static int32_t one_request(int connfd) {
     }
 
     uint32_t len = 0;
-    memcpy(&len, rbuf, 4);  //-- assume little endian
+    //-- assume little endian (not specified but depends on system)
+    memcpy(&len, rbuf, 4);  
     if (len > k_max_msg) {
         msg("too long");
         return -1;
     }
 
+    //-- 2. đọc phần msg chính
     //-- request body
     err = read_full(connfd, &rbuf[4], len);
     if (err) {
@@ -80,7 +87,7 @@ static int32_t one_request(int connfd) {
     rbuf[4 + len] = '\0';
     printf("client says: %s\n", &rbuf[4]);
 
-    //-- reply using the same protocol
+    //-- 3. reply using the same protocol
     const char reply[] = "world";
     char wbuf[4 + sizeof(reply)];
     len = (uint32_t)strlen(reply);
@@ -124,6 +131,7 @@ int main() {
     while (true) {
         struct sockaddr_in client_addr = {};
         socklen_t socklen = sizeof(client_addr);
+        //-- trả về fd tương ứng với socket kết nối 
         int connfd = accept(fd, (struct sockaddr *)&client_addr, &socklen);
         if (connfd < 0) {
             continue;   //-- error
