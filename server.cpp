@@ -11,13 +11,16 @@
 #include <vector>
 #include <fcntl.h>
 #include <poll.h>
+#include <string>
+#include <map>
 
-
-static void msg(const char *msg) {
+static void msg(const char *msg)
+{
     fprintf(stderr, "%s\n", msg);
 }
 
-static void die(const char *msg) {
+static void die(const char *msg)
+{
     int err = errno;
     fprintf(stderr, "[%d] %s\n", err, msg);
     abort();
@@ -26,13 +29,16 @@ static void die(const char *msg) {
 const size_t k_max_msg = 4096;
 
 //-- đọc từ fd vào buf, mỗi lần n bytes
-static int32_t read_full(int fd, char *buf, size_t n) {
-    while (n > 0) {
+static int32_t read_full(int fd, char *buf, size_t n)
+{
+    while (n > 0)
+    {
         //-- đọc n bytes từ fd vào buf
         //-- rv trừ dần vào n; rv = bao nhiêu tùy kích cỡ của buf
         ssize_t rv = read(fd, buf, n);
-        if (rv <= 0) {
-            return -1;  //-- error, or unexpected EOF
+        if (rv <= 0)
+        {
+            return -1; //-- error, or unexpected EOF
         }
         assert((size_t)rv <= n);
         n -= (size_t)rv;
@@ -42,12 +48,15 @@ static int32_t read_full(int fd, char *buf, size_t n) {
     return 0;
 }
 
-static int32_t write_all(int fd, const char *buf, size_t n) {
-    while (n > 0) {
+static int32_t write_all(int fd, const char *buf, size_t n)
+{
+    while (n > 0)
+    {
         //-- ghi từ buf ra fd
         ssize_t rv = write(fd, buf, n);
-        if (rv <= 0) {
-            return -1;  //-- error
+        if (rv <= 0)
+        {
+            return -1; //-- error
         }
         assert((size_t)rv <= n);
         n -= (size_t)rv;
@@ -56,16 +65,21 @@ static int32_t write_all(int fd, const char *buf, size_t n) {
     return 0;
 }
 
-static int32_t one_request(int connfd) {
+static int32_t one_request(int connfd)
+{
     //-- 4 bytes header
     char rbuf[4 + k_max_msg + 1];
     errno = 0;
     //-- 1. đọc header để biết độ dài msg
     int32_t err = read_full(connfd, rbuf, 4);
-    if (err) {
-        if (errno == 0) {
+    if (err)
+    {
+        if (errno == 0)
+        {
             msg("EOF");
-        } else {
+        }
+        else
+        {
             msg("read() error");
         }
         return err;
@@ -73,8 +87,9 @@ static int32_t one_request(int connfd) {
 
     uint32_t len = 0;
     //-- assume little endian (not specified but depends on system)
-    memcpy(&len, rbuf, 4);  
-    if (len > k_max_msg) {
+    memcpy(&len, rbuf, 4);
+    if (len > k_max_msg)
+    {
         msg("too long");
         return -1;
     }
@@ -82,7 +97,8 @@ static int32_t one_request(int connfd) {
     //-- 2. đọc phần msg chính
     //-- request body
     err = read_full(connfd, &rbuf[4], len);
-    if (err) {
+    if (err)
+    {
         msg("read() error");
         return err;
     }
@@ -99,13 +115,15 @@ static int32_t one_request(int connfd) {
     return write_all(connfd, wbuf, 4 + len);
 }
 
-enum {
+enum
+{
     STATE_REQ = 0,
     STATE_RES = 1,
     STATE_END = 2,
 };
 
-struct Conn {
+struct Conn
+{
     int fd = -1;
     //-- STATE_REQ or STATE_RES
     uint32_t state = 0;
@@ -118,10 +136,12 @@ struct Conn {
     uint8_t wbuf[4 + k_max_msg];
 };
 
-static void fd_set_nb(int fd) {
+static void fd_set_nb(int fd)
+{
     errno = 0;
     int flags = fcntl(fd, F_GETFL, 0);
-    if (errno) {
+    if (errno)
+    {
         die("fcntl error");
         return;
     }
@@ -130,107 +150,256 @@ static void fd_set_nb(int fd) {
 
     errno = 0;
     (void)fcntl(fd, F_SETFL, flags);
-    if (errno) {
+    if (errno)
+    {
         die("fcntl error");
     }
 }
 
-static bool try_flush_buffer(Conn *conn) {
+static bool try_flush_buffer(Conn *conn)
+{
     ssize_t rv = 0;
-    do {
+    do
+    {
         size_t remain = conn->wbuf_size - conn->wbuf_sent;
         rv = write(conn->fd, &conn->wbuf[conn->wbuf_sent], remain);
     } while (rv < 0 && errno == EINTR);
-    if (rv < 0 && errno == EAGAIN) {
-        // got EAGAIN, stop.
+    if (rv < 0 && errno == EAGAIN)
+    {
+        //-- got EAGAIN, stop.
         return false;
     }
-    if (rv < 0) {
+    if (rv < 0)
+    {
         msg("write() error");
         conn->state = STATE_END;
         return false;
     }
     conn->wbuf_sent += (size_t)rv;
     assert(conn->wbuf_sent <= conn->wbuf_size);
-    if (conn->wbuf_sent == conn->wbuf_size) {
-        // response was fully sent, change state back
+    if (conn->wbuf_sent == conn->wbuf_size)
+    {
+        //-- response was fully sent, change state back
         conn->state = STATE_REQ;
         conn->wbuf_sent = 0;
         conn->wbuf_size = 0;
         return false;
     }
-    // still got some data in wbuf, could try to write again
+    //-- still got some data in wbuf, could try to write again
     return true;
 }
 
-static void state_res(Conn *conn) {
-    while (try_flush_buffer(conn)) {}
+static void state_res(Conn *conn)
+{
+    while (try_flush_buffer(conn))
+    {
+    }
 }
 
-static bool try_one_request(Conn *conn) {
-    // try to parse a request from the buffer
-    if (conn->rbuf_size < 4) {
-        // not enough data in the buffer. Will retry in the next iteration
+const size_t k_max_args = 1024;
+
+
+static int32_t parse_req(
+    const uint8_t *data, size_t len, std::vector<std::string> &out)
+{
+    if (len < 4) {
+        return -1;
+    }
+    uint32_t n = 0;
+    memcpy(&n, &data[0], 4);
+    if (n > k_max_args) {
+        return -1;
+    }
+
+    size_t pos = 4;
+    while (n--) {
+        if (pos + 4 > len) {
+            return -1;
+        }
+        uint32_t sz = 0;
+        memcpy(&sz, &data[pos], 4);
+        if (pos + 4 + sz > len) {
+            return -1;
+        }
+        out.push_back(std::string((char *)&data[pos + 4], sz));
+        pos += 4 + sz;
+    }
+
+    if (pos != len) {
+        return -1;  //-- thừa
+    }
+    return 0;
+}
+
+static bool cmd_is(const std::string &word, const char *cmd) {
+    return 0 == strcasecmp(word.c_str(), cmd);
+}
+
+enum {
+    RES_OK = 0,
+    RES_ERR = 1,
+    RES_NX = 2,
+};
+
+//-- The data structure for the key space
+static std::map<std::string, std::string> g_map;
+
+//-- GET VALUE FOR KEY
+static uint32_t do_get(
+    const std::vector<std::string> &cmd, uint8_t *res, uint32_t *reslen
+)
+{
+    if (!g_map.count(cmd[1]))
+        return RES_NX;
+
+    std::string &val = g_map[cmd[1]];
+    assert (val.size() <= k_max_msg);
+    memcpy(res, val.data(), val.size());
+    *reslen = (uint32_t)val.size();
+    return RES_OK;
+}
+
+//-- SET VALUE FOR KEY
+static uint32_t do_set(
+    const std::vector<std::string> &cmd, uint8_t *res, uint32_t *reslen)
+{
+    (void)res;
+    (void)reslen;
+    g_map[cmd[1]] = cmd[2];
+    return RES_OK;
+}
+
+//-- DELETE VALUE FOR KEY
+static uint32_t do_del(
+    const std::vector<std::string> &cmd, uint8_t *res, uint32_t *reslen)
+{
+    (void)res;
+    (void)reslen;
+    g_map.erase(cmd[1]);
+    return RES_OK;
+}
+
+static int32_t do_request(
+    const uint8_t *req, 
+    uint32_t reqlen,
+    uint32_t *rescode, 
+    uint8_t *res, 
+    uint32_t *reslen
+)
+{
+    std::vector<std::string> cmd;
+    if (0 != parse_req(req, reqlen, cmd)) {
+        msg("bad req");
+        return -1;
+    }
+    if (cmd.size() == 2 && cmd_is(cmd[0], "get")) {
+        *rescode = do_get(cmd, res, reslen);
+    } else if (cmd.size() == 3 && cmd_is(cmd[0], "set")) {
+        *rescode = do_set(cmd, res, reslen);
+    } else if (cmd.size() == 2 && cmd_is(cmd[0], "del")) {
+        *rescode = do_del(cmd, res, reslen);
+    } else {
+        //-- cmd is not recognized
+        *rescode = RES_ERR;
+        const char *msg = "Unknown cmd";
+        strcpy((char *)res, msg);
+        *reslen = strlen(msg);
+        return 0;
+    }
+    return 0;
+}
+
+
+static bool try_one_request(Conn *conn)
+{
+    //-- try to parse a request from the buffer
+    if (conn->rbuf_size < 4)
+    {
+        //-- not enough data in the buffer. Will retry in the next iteration
         return false;
     }
     uint32_t len = 0;
     memcpy(&len, &conn->rbuf[0], 4);
-    if (len > k_max_msg) {
+    if (len > k_max_msg)
+    {
         msg("too long");
         conn->state = STATE_END;
         return false;
     }
-    if (4 + len > conn->rbuf_size) {
-        // not enough data in the buffer. Will retry in the next iteration
+    if (4 + len > conn->rbuf_size)
+    {
+        //-- not enough data in the buffer. Will retry in the next iteration
         return false;
     }
 
-    // got one request, do something with it
+    //-- got one request, do something with it
     printf("client says: %.*s\n", len, &conn->rbuf[4]);
+    uint32_t rescode = 0;
+    uint32_t wlen = 0;
+    //-- trả về lỗi khi bad request 
+    uint32_t err = do_request(
+        &conn->rbuf[4], len,
+        &rescode, &conn->wbuf[4 + 4], &wlen
+    );
 
-    // generating echoing response
-    memcpy(&conn->wbuf[0], &len, 4);
-    memcpy(&conn->wbuf[4], &conn->rbuf[4], len);
-    conn->wbuf_size = 4 + len;
+    if (err)
+    {
+        conn -> state = STATE_END;
+        return false;
+    }
 
-    // remove the request from the buffer.
-    // note: frequent memmove is inefficient.
-    // note: need better handling for production code.
+    wlen += 4;
+    memcpy(&conn->wbuf[0], &wlen, 4);
+    memcpy(&conn->wbuf[4], &rescode, 4);
+    conn->wbuf_size = 4 + wlen;
+
+    //-- remove the request from the buffer.
+    //-- note: frequent memmove is inefficient.
+    //-- note: need better handling for production code.
     size_t remain = conn->rbuf_size - 4 - len;
-    if (remain) {
+    if (remain)
+    {
         memmove(conn->rbuf, &conn->rbuf[4 + len], remain);
     }
     conn->rbuf_size = remain;
 
-    // change state
+    //-- change state
     conn->state = STATE_RES;
     state_res(conn);
 
-    // continue the outer loop if the request was fully processed
+    //-- continue the outer loop if the request was fully processed
     return (conn->state == STATE_REQ);
 }
 
-static bool try_fill_buffer(Conn *conn) {
-    // try to fill the buffer
+static bool try_fill_buffer(Conn *conn)
+{
+    //-- try to fill the buffer
     assert(conn->rbuf_size < sizeof(conn->rbuf));
     ssize_t rv = 0;
-    do {
+    do
+    {
         size_t cap = sizeof(conn->rbuf) - conn->rbuf_size;
         rv = read(conn->fd, &conn->rbuf[conn->rbuf_size], cap);
     } while (rv < 0 && errno == EINTR);
-    if (rv < 0 && errno == EAGAIN) {
-        // got EAGAIN, stop.
+    if (rv < 0 && errno == EAGAIN)
+    {
+        //-- got EAGAIN, stop.
         return false;
     }
-    if (rv < 0) {
+    if (rv < 0)
+    {
         msg("read() error");
         conn->state = STATE_END;
         return false;
     }
-    if (rv == 0) {
-        if (conn->rbuf_size > 0) {
+    if (rv == 0)
+    {
+        if (conn->rbuf_size > 0)
+        {
             msg("unexpected EOF");
-        } else {
+        }
+        else
+        {
             msg("EOF");
         }
         conn->state = STATE_END;
@@ -240,51 +409,65 @@ static bool try_fill_buffer(Conn *conn) {
     conn->rbuf_size += (size_t)rv;
     assert(conn->rbuf_size <= sizeof(conn->rbuf));
 
-    // Try to process requests one by one.
-    // Why is there a loop? Please read the explanation of "pipelining".
-    while (try_one_request(conn)) {}
+    //-- Try to process requests one by one.
+    //-- TODO :Why is there a loop? Please read the explanation of "pipelining".
+    while (try_one_request(conn))
+    {
+    }
     return (conn->state == STATE_REQ);
 }
 
-
-static void state_req(Conn *conn) {
-    while (try_fill_buffer(conn)) {}
+static void state_req(Conn *conn)
+{
+    while (try_fill_buffer(conn))
+    {
+    }
 }
 
-static void connection_io(Conn *conn){
-    if(conn->state == STATE_REQ){
+//-- STATE MACHINE
+static void connection_io(Conn *conn)
+{
+    if (conn->state == STATE_REQ)
+    {
         state_req(conn);
     }
-    else if (conn->state == STATE_RES) {
+    else if (conn->state == STATE_RES)
+    {
         state_res(conn);
     }
-    else {
+    else
+    {
         assert(0);
     }
 }
 
-static void conn_put(std::vector<Conn *> &fd2conn, struct Conn *conn) {
-    if (fd2conn.size() <= (size_t)conn->fd) {
+static void conn_put(std::vector<Conn *> &fd2conn, struct Conn *conn)
+{
+    if (fd2conn.size() <= (size_t)conn->fd)
+    {
         fd2conn.resize(conn->fd + 1);
     }
     fd2conn[conn->fd] = conn;
 }
 
-static int32_t accept_new_conn(std::vector<Conn *> &fd2conn, int fd) {
-    // accept
+static int32_t accept_new_conn(std::vector<Conn *> &fd2conn, int fd)
+{
+    //-- accept
     struct sockaddr_in client_addr = {};
     socklen_t socklen = sizeof(client_addr);
     int connfd = accept(fd, (struct sockaddr *)&client_addr, &socklen);
-    if (connfd < 0) {
+    if (connfd < 0)
+    {
         msg("accept() error");
-        return -1;  // error
+        return -1; //-- error
     }
 
-    // set the new connection fd to nonblocking mode
+    //-- set the new connection fd to nonblocking mode
     fd_set_nb(connfd);
-    // creating the struct Conn
+    //-- creating the struct Conn
     struct Conn *conn = (struct Conn *)malloc(sizeof(struct Conn));
-    if (!conn) {
+    if (!conn)
+    {
         close(connfd);
         return -1;
     }
@@ -297,15 +480,17 @@ static int32_t accept_new_conn(std::vector<Conn *> &fd2conn, int fd) {
     return 0;
 }
 
-int main() {
+int main()
+{
     //-- 1. SOCKET
     //-- type: sock_stream for TCP byte stream
     //-- domain: AF_INET
     //-- protocol: 0 - auto
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         die("socket()");
-    } 
+    }
 
     //-- this is needed for most server applications
     int val = 1;
@@ -316,15 +501,17 @@ int main() {
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET;
     addr.sin_port = ntohs(1234);
-    addr.sin_addr.s_addr = ntohl(0);    //-- wildcard address 0.0.0.0
+    addr.sin_addr.s_addr = ntohl(0); //-- wildcard address 0.0.0.0
     int rv = bind(fd, (const sockaddr *)&addr, sizeof(addr));
-    if (rv) {
+    if (rv)
+    {
         die("bind()");
     }
 
     //-- 3. LISTEN
     rv = listen(fd, SOMAXCONN);
-    if (rv) {
+    if (rv)
+    {
         die("listen()");
     }
 
@@ -334,43 +521,51 @@ int main() {
     std::vector<struct pollfd> poll_args;
 
     //-- 4. ACCEPT
-    while (true) {
+    while (true)
+    {
         poll_args.clear();
 
         struct pollfd pfd = {fd, POLLIN, 0};
         poll_args.push_back(pfd);
 
-        for (Conn *conn : fd2conn){
-            if (!conn){
+        for (Conn *conn : fd2conn)
+        {
+            if (!conn)
+            {
                 continue;
             }
-            //-- pollfd: polling request 
+            //-- pollfd: polling request
             struct pollfd pfd = {};
-            pfd.fd = conn -> fd;
-            pfd.events = (conn -> state == STATE_REQ) ? POLLIN : POLLOUT;
+            pfd.fd = conn->fd;
+            pfd.events = (conn->state == STATE_REQ) ? POLLIN : POLLOUT;
             pfd.events = pfd.events | POLLERR;
             poll_args.push_back(pfd);
         }
         int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), 1000);
-        if (rv < 0){
+        if (rv < 0)
+        {
             die("poll");
         }
 
-        for (size_t i=1; i<poll_args.size(); ++i){
-            if (poll_args[i].revents){
+        for (size_t i = 1; i < poll_args.size(); ++i)
+        {
+            if (poll_args[i].revents)
+            {
                 Conn *conn = fd2conn[poll_args[i].fd];
                 connection_io(conn);
-                if (conn->state == STATE_END) {
-                    // client closed normally, or something bad happened.
-                    // destroy this connection
+                if (conn->state == STATE_END)
+                {
+                    //-- client closed normally, or something bad happened.
+                    //-- destroy this connection
                     fd2conn[conn->fd] = NULL;
                     (void)close(conn->fd);
                     free(conn);
                 }
             }
         }
-        // try to accept a new connection if the listening fd is active
-        if (poll_args[0].revents) {
+        //-- try to accept a new connection if the listening fd is active
+        if (poll_args[0].revents)
+        {
             (void)accept_new_conn(fd2conn, fd);
         }
     }
