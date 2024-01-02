@@ -135,4 +135,8 @@ HNode * hm_pop(
         return h_detach(&hmap->ht2, from);
     }
     return NULL;
-} 
+}
+
+size_t hm_size(HMap *hmap) {
+    return hmap->ht1.size + hmap->ht2.size;
+}
