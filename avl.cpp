@@ -27,7 +27,7 @@ static uint32_t max(uint32_t lhs, uint32_t rhs) {
     return lhs < rhs ? rhs : lhs;
 }
 
-// maintaining the depth and cnt field
+//-- maintaining the depth and cnt field
 static void avl_update(AVLNode *node) {
     node->depth = 1 + max(avl_depth(node->left), avl_depth(node->right));
     node->cnt = 1 + avl_cnt(node->left) + avl_cnt(node->right);
@@ -61,7 +61,7 @@ static AVLNode *rot_right(AVLNode *node) {
     return new_node;
 }
 
-// the left subtree is too deep
+//-- the left subtree is too deep
 static AVLNode *avl_fix_left(AVLNode *root) {
     if (avl_depth(root->left->left) < avl_depth(root->left->right)) {
         root->left = rot_left(root->left);
@@ -69,7 +69,7 @@ static AVLNode *avl_fix_left(AVLNode *root) {
     return rot_right(root);
 }
 
-// the right subtree is too deep
+//-- the right subtree is too deep
 static AVLNode *avl_fix_right(AVLNode *root) {
     if (avl_depth(root->right->right) < avl_depth(root->right->left)) {
         root->right = rot_right(root->right);
@@ -77,7 +77,7 @@ static AVLNode *avl_fix_right(AVLNode *root) {
     return rot_left(root);
 }
 
-// fix imbalanced nodes and maintain invariants until the root is reached
+//-- fix imbalanced nodes and maintain invariants until the root is reached
 static AVLNode *avl_fix(AVLNode *node) {
     while (true) {
         avl_update(node);
@@ -98,5 +98,51 @@ static AVLNode *avl_fix(AVLNode *node) {
         }
         *from = node;
         node = node->parent;
+    }
+}
+
+//-- detach a node and returns the new root of the tree
+static AVLNode *avl_del(AVLNode *node) {
+    if (node->right == NULL) {
+        //-- no right subtree, replace the node with the left subtree
+        //-- link the left subtree to the parent
+        AVLNode *parent = node->parent;
+        if (node->left) {
+            node->left->parent = parent;
+        }
+        if (parent) {
+            //-- attach the left subtree to the parent
+            (parent->left == node ? parent->left : parent->right) = node->left;
+            return avl_fix(parent);
+        } else {
+            //-- removing root?
+            return node->left;
+        }
+    } else {
+        //-- thay thế nút tận cùng bên trái của cây con phải với nút cần xóa
+        //-- swap the node with its next sibling
+        AVLNode *victim = node->right;
+        while (victim->left) {
+            victim = victim->left;
+        }
+        AVLNode *root = avl_del(victim);
+
+        //-- gán giá trị
+        *victim = *node;
+        //-- gán con trỏ
+        if (victim->left) {
+            victim->left->parent = victim;
+        }
+        if (victim->right) {
+            victim->right->parent = victim;
+        }
+        AVLNode *parent = node->parent;
+        if (parent) {
+            (parent->left == node ? parent->left : parent->right) = victim;
+            return root;
+        } else {
+            //-- removing root?
+            return victim;
+        }
     }
 }
