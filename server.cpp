@@ -260,7 +260,7 @@ enum {
     T_ZSET = 1,
 };
 
-// the structure for the key
+//-- the structure for the key
 struct Entry {
     struct HNode node;
     std::string key;
@@ -269,12 +269,6 @@ struct Entry {
     ZSet *zset = NULL;
 };
 
-// //-- the structure for the key
-// struct Entry {
-//     struct HNode node;
-//     std::string key;
-//     std::string val;
-// };
 
 static bool entry_eq(HNode *lhs, HNode *rhs) {
     struct Entry *le = container_of(lhs, struct Entry, node);
@@ -422,14 +416,14 @@ static bool str2int(const std::string &s, int64_t &out) {
     return endp == s.c_str() + s.size();
 }
 
-// zadd zset score name
+//-- zadd zset score name
 static void do_zadd(std::vector<std::string> &cmd, std::string &out) {
     double score = 0;
     if (!str2dbl(cmd[2], score)) {
         return out_err(out, ERR_ARG, "expect fp number");
     }
 
-    // look up or create the zset
+    //-- look up or create the zset
     Entry key;
     key.key.swap(cmd[1]);
     key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
@@ -450,7 +444,7 @@ static void do_zadd(std::vector<std::string> &cmd, std::string &out) {
         }
     }
 
-    // add or update the tuple
+    //-- add or update the tuple
     const std::string &name = cmd[3];
     bool added = zset_add(ent->zset, name.data(), name.size(), score);
     return out_int(out, (int64_t)added);
@@ -474,7 +468,7 @@ static bool expect_zset(std::string &out, std::string &s, Entry **ent) {
     return true;
 }
 
-// zrem zset name
+//-- zrem zset name
 static void do_zrem(std::vector<std::string> &cmd, std::string &out) {
     Entry *ent = NULL;
     if (!expect_zset(out, cmd[1], &ent)) {
@@ -489,7 +483,7 @@ static void do_zrem(std::vector<std::string> &cmd, std::string &out) {
     return out_int(out, znode ? 1 : 0);
 }
 
-// zscore zset name
+//-- zscore zset name
 static void do_zscore(std::vector<std::string> &cmd, std::string &out) {
     Entry *ent = NULL;
     if (!expect_zset(out, cmd[1], &ent)) {
@@ -501,9 +495,9 @@ static void do_zscore(std::vector<std::string> &cmd, std::string &out) {
     return znode ? out_dbl(out, znode->score) : out_nil(out);
 }
 
-// zquery zset score name offset limit
+//-- zquery zset score name offset limit
 static void do_zquery(std::vector<std::string> &cmd, std::string &out) {
-    // parse args
+    //-- parse args
     double score = 0;
     if (!str2dbl(cmd[2], score)) {
         return out_err(out, ERR_ARG, "expect fp number");
@@ -518,7 +512,7 @@ static void do_zquery(std::vector<std::string> &cmd, std::string &out) {
         return out_err(out, ERR_ARG, "expect int");
     }
 
-    // get the zset
+    //-- get the zset
     Entry *ent = NULL;
     if (!expect_zset(out, cmd[1], &ent)) {
         if (out[0] == SER_NIL) {
@@ -528,7 +522,7 @@ static void do_zquery(std::vector<std::string> &cmd, std::string &out) {
         return;
     }
 
-    // look up the tuple
+    //-- look up the tuple
     if (limit <= 0) {
         return out_arr(out, 0);
     }
@@ -536,8 +530,8 @@ static void do_zquery(std::vector<std::string> &cmd, std::string &out) {
         ent->zset, score, name.data(), name.size(), offset
     );
 
-    // output
-    out_arr(out, 0);    // the array length will be updated later
+    //-- output
+    out_arr(out, 0);    //-- the array length will be updated later
     uint32_t n = 0;
     while (znode && (int64_t)n < limit) {
         out_str(out, znode->name, znode->len);
@@ -566,7 +560,7 @@ static void do_request(std::vector<std::string> &cmd, std::string &out) {
     } else if (cmd.size() == 6 && cmd_is(cmd[0], "zquery")) {
         do_zquery(cmd, out);
     } else {
-        // cmd is not recognized
+        //-- cmd is not recognized
         out_err(out, ERR_UNKNOWN, "Unknown cmd");
     }
 }

@@ -16,11 +16,11 @@ struct ZSet {
 };
 
 struct ZNode {
-    // avlnode cũng là node root của set 
+    //-- avlnode cũng là node root của set 
     AVLNode tree;
-    // hnode trỏ đến đầu cái sorted set
+    //-- hnode trỏ đến đầu cái sorted set
     HNode hmap;
-    // là gì  
+    //-- là gì  
     double score = 0;
     size_t len = 0;
     char name[0];
@@ -84,7 +84,7 @@ static void tree_add(ZSet *zset, ZNode *node) {
     }
 }
 
-// update the score of an existing node (AVL tree reinsertion)
+//-- update the score of an existing node (AVL tree reinsertion)
 static void zset_update(ZSet *zset, ZNode *node, double score) {
     if (node->score == score) {
         return;
@@ -113,7 +113,7 @@ static bool hcmp(HNode *node, HNode *key) {
     return 0 == memcmp(znode->name, hkey->name, znode->len);
 }
 
-// lookup by name
+//-- lookup by name
 ZNode *zset_lookup(ZSet *zset, const char *name, size_t len) {
     if (!zset->tree) {
         return NULL;
@@ -131,7 +131,7 @@ ZNode *zset_lookup(ZSet *zset, const char *name, size_t len) {
     return container_of(found, ZNode, hmap);
 }
 
-// add a new (score, name) tuple, or update the score of the existing tuple
+//-- add a new (score, name) tuple, or update the score of the existing tuple
 bool zset_add(ZSet *zset, const char *name, size_t len, double score) {
     ZNode *node = zset_lookup(zset, name, len);
     if (node) {
@@ -145,7 +145,7 @@ bool zset_add(ZSet *zset, const char *name, size_t len, double score) {
     }
 }
 
-// deletion by name
+//-- deletion by name
 ZNode *zset_pop(ZSet *zset, const char *name, size_t len) {
     if (!zset->tree) {
         return NULL;
@@ -169,10 +169,10 @@ void znode_del(ZNode *node) {
     free(node);
 }
 
-// find the (score, name) tuple that is greater or equal to the argument,
-// then offset relative to it.
+//-- find the (score, name) tuple that is greater or equal to the argument,
+//-- then offset relative to it.
 ZNode *zset_query(
-    // TODO tại sao có được offset truyền vào
+    //-- TODO tại sao có được offset truyền vào
     ZSet *zset, double score, const char *name, size_t len, int64_t offset)
 {
     AVLNode *found = NULL;
@@ -181,7 +181,7 @@ ZNode *zset_query(
         if (zless(cur, score, name, len)) {
             cur = cur->right;
         } else {
-            found = cur;    // candidate
+            found = cur;    //-- candidate
             cur = cur->left;
         }
     }

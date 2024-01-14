@@ -22,6 +22,8 @@ static void hm_start_resizing(HMap *hmap) {
     hmap->resizing_pos = 0;
 }
 
+//-- thêm node vào table, mỗi node trỏ đến dầu DSLK ứng với 1 pos
+//-- chèn node vào đầu DS tại pos đó
 static void h_insert(HTab *htab, HNode *node) {
     //-- index in hash table
     //-- = hash code of node AND ht mask
@@ -34,6 +36,7 @@ static void h_insert(HTab *htab, HNode *node) {
 }
 
 static HNode **h_lookup(
+    //-- truyền hnode như này vào thì chỉ có được hcode và con trỏ next
     HTab *htab, HNode *key, bool (*cmp)(HNode *, HNode *))
 {
     //-- ht chưa có gì
@@ -46,7 +49,7 @@ static HNode **h_lookup(
     HNode **from = &htab->tab[pos];
     while (*from) {
         if (cmp(*from, key)) {
-            //-- lưu trữ key value cơ mà, cái này lấy value như nào
+            //-- trả về con trỏ, để sau đó dùng Entry để lấy value
             return from;
         }
         from = &(*from)->next;
